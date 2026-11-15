@@ -19,6 +19,12 @@ Add these elements **inside** the correct `<game>` element in your own `gamelist
 
 The path is resolved by EmulationStation, and zoom can be changed by restarting EmulationStation. Not every glTF feature or animation rig has been tested. GLB assets are not included in this repository.
 
+## Tested build environment
+
+The first ARM64 binary was built and run on an **R36T Max** using **dArkOS4Clone with Debian GNU/Linux 13.6 (Trixie)**, on a **720 × 720** display. It is an **AArch64 dynamically linked ELF** and uses SDL2, EGL/OpenGL ES, FreeImage, FreeType, SDL2_mixer, libcurl, VLC and ALSA, along with their transitive libraries. On the tested device, `ldd` reported no unresolved shared libraries. This does **not** guarantee ABI or graphics-driver compatibility on other dArkOS, ArkOS or ARM64 images.
+
+The locally prepared, **not yet publicly released** archive is named `emulationstation-3d-r36tmax-arm64.tar.gz` with SHA-256 `6c31ef047feda893bbf354ee564c7f8784400e807187777d3eae247ba5a95213`. This checksum applies only to that exact test archive; do not assume a later Release asset has the same checksum.
+
 ## Build
 From a clone of the `3d-preview` branch, with the upstream dependencies and submodules installed:
 
