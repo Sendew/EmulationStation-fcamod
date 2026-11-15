@@ -42,3 +42,12 @@ CPackConfig.cmake
 CPackSourceConfig.cmake
 *.cbp
 /.vs
+
+# Local EmulationStation 3D Preview experiments (never distributed)
+/build-3d/
+/backup-glb-*/
+/es-app/src/components/backup-chao-glb-*/
+*.backup*
+*.before-*
+*.pre3d
+/es-app/src/views/gamelist/Model3DComponent.h
