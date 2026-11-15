@@ -1,3 +1,7 @@
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include "components/GlbPreviewComponent.h"
 #include <string>
 #include "views/gamelist/DetailedGameListView.h"
 
@@ -33,6 +37,12 @@ DetailedGameListView::DetailedGameListView(Window* window, FolderData* root) :
 	mList.setCursorChangedCallback([&](const CursorState& /*state*/) { updateInfoPanel(); });
 
 	createImage();
+	// GLB experimental: regiao da capa do tema atual (720x720).
+	mModel3D = new GlbPreviewComponent(mWindow);
+	mModel3D->setPosition(mSize.x()*0.596f, mSize.y()*0.151f);
+	mModel3D->setSize(mSize.x()*0.358f, mSize.y()*0.475f);
+	mModel3D->setDefaultZIndex(-1);
+	addChild(mModel3D);
 
 	// metadata labels + values
 	mLblRating.setText(_("Rating") + ": ");
@@ -84,6 +94,7 @@ DetailedGameListView::DetailedGameListView(Window* window, FolderData* root) :
 
 DetailedGameListView::~DetailedGameListView()
 {
+	if (mModel3D) delete mModel3D;
 	if (mThumbnail != nullptr)
 		delete mThumbnail;
 
@@ -258,7 +269,24 @@ void DetailedGameListView::onThemeChanged(const std::shared_ptr<ThemeData>& them
 	mDescription.setSize(mDescContainer.getSize().x(), 0);
 	mDescription.applyTheme(theme, getName(), "md_description", ALL ^ (POSITION | ThemeFlags::SIZE | ThemeFlags::ORIGIN | TEXT | ROTATION));
 
-	sortChildren();
+
+        // GLB_THEME_LAYOUT_V1
+        if (mModel3D && mVideo &&
+            mVideo->getSize().x() > 0 &&
+            mVideo->getSize().y() > 0)
+        {
+            auto pos = mVideo->getPosition();
+            auto size = mVideo->getSize();
+            auto origin = mVideo->getOrigin();
+
+            mModel3D->setPosition(
+                pos.x() - origin.x() * size.x(),
+                pos.y() - origin.y() * size.y()
+            );
+            mModel3D->setSize(size.x(), size.y());
+        }
+
+        sortChildren();
 	updateInfoPanel();
 }
 
@@ -342,6 +370,28 @@ void DetailedGameListView::updateInfoPanel()
 {
 	FileData* file = (mList.size() == 0 || mList.isScrolling()) ? NULL : mList.getSelected();
 
+	// Usa model3d apenas quando o arquivo GLB for carregado.
+	const std::string glbPath = file ? file->getMetadata().get("model3d") : "";
+        if (file) fprintf(stderr, "[SELDBG] jogo=%s | arquivo=%s | modelo=%s\n", file->getName().c_str(), file->getPath().c_str(), glbPath.c_str());
+	const bool modelReady = mModel3D && mModel3D->setModel(glbPath);
+    // GLB_XML_ZOOM_V1: zoom independente para cada jogo, 1.0 por padrao.
+    float modelZoom = 1.0f;
+    if (file)
+    {
+        const std::string zoomText = file->getMetadata().get("model3dScale");
+        if (!zoomText.empty())
+        {
+            char* zoomEnd = nullptr;
+            const float zoomParsed = std::strtof(zoomText.c_str(), &zoomEnd);
+            if (zoomEnd != zoomText.c_str() && *zoomEnd == '\0' &&
+                std::isfinite(zoomParsed) && zoomParsed > 0.0f)
+                modelZoom = std::min(zoomParsed, 8.0f);
+        }
+    }
+    if (mModel3D) mModel3D->setZoom(modelZoom);
+
+	if (mImage) mImage->setVisible(!modelReady);
+	if (mVideo) mVideo->setVisible(!modelReady);
 	bool fadingOut;
 	if (file == NULL)
 	{		
@@ -500,4 +550,14 @@ void DetailedGameListView::onShow()
 {
 	BasicGameListView::onShow();
 	updateInfoPanel();
+}
+
+
+// GLB_RENDER_LAST_V1
+void DetailedGameListView::render(const Transform4x4f& parentTrans)
+{
+    IGameListView::render(parentTrans);
+
+    if (mModel3D)
+        mModel3D->render(parentTrans * getTransform());
 }

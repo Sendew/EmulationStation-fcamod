@@ -7,12 +7,14 @@
 #include "components/RatingComponent.h"
 #include "components/ScrollableContainer.h"
 #include "views/gamelist/BasicGameListView.h"
+#include "components/GlbPreviewComponent.h"
 
 class VideoComponent;
 
 class DetailedGameListView : public BasicGameListView
 {
 public:
+    void render(const Transform4x4f& parentTrans) override;
 	DetailedGameListView(Window* window, FolderData* root);
 	~DetailedGameListView();
 
@@ -63,6 +65,8 @@ private:
 
 	ScrollableContainer mDescContainer;
 	TextComponent mDescription;
+	GlbPreviewComponent* mModel3D = nullptr;
+
 
 
 };
