@@ -52,6 +52,21 @@ Scripts have not yet been validated on a clean device. Do not treat this as a ge
 
 `emulationstation-3d-r36tmax-arm64.tar.gz` is a compressed archive (similar to a ZIP). It contains **only one file**, the modified ARM64 executable named `emulationstation-3d`. It is **not** a ROM, firmware image, or SD-card image. Do not flash it, and do not extract it into the ROMs directory.
 
+## Automatic installation (prepared, NOT YET released)
+
+The new `scripts/3d-preview/install-release.sh` downloads the exact `v0.1.0-beta` archive from GitHub Releases, verifies its pinned SHA-256, extracts it temporarily, and invokes `install.sh`. The original EmulationStation executable remains untouched. If startup fails, the installer attempts to restore the original service.
+
+**Do not execute this on the developer's existing R36T Max.** That console already has a manual 3D installation, and this installer intentionally refuses to overwrite it.
+
+Once the **Release is public and tested on a clean compatible device**, the intended commands are:
+
+```bash
+curl -fL https://raw.githubusercontent.com/Sendew/EmulationStation-fcamod/3d-preview/scripts/3d-preview/install-release.sh -o install-release.sh
+# Review the downloaded script before running it.
+sudo bash install-release.sh
+```
+
+Until the Release is public, the download will fail safely. These beta installers have **not** passed an end-to-end install/uninstall test. They are not an official dArkOS update.
 ## Manual beta installation (NOT YET TESTED ON A CLEAN DEVICE)
 
 **Prerequisites:** a compatible R36T Max running the same dArkOS4Clone / Debian 13 ARM64 environment, SSH access, a system backup, the release archive downloaded to a Windows PC, and the `3d-preview` installer scripts. The installer will **refuse** an existing manual 3D installation; **do not run it on the development R36T Max** until a migration procedure is ready.
