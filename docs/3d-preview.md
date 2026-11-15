@@ -48,5 +48,43 @@ The installer refuses to overwrite an existing experimental 3D setup, creates a 
 
 Scripts have not yet been validated on a clean device. Do not treat this as a general-purpose dArkOS update. A tested packaged Release and compatibility checks will follow.
 
+## What is the .tar.gz file?
+
+`emulationstation-3d-r36tmax-arm64.tar.gz` is a compressed archive (similar to a ZIP). It contains **only one file**, the modified ARM64 executable named `emulationstation-3d`. It is **not** a ROM, firmware image, or SD-card image. Do not flash it, and do not extract it into the ROMs directory.
+
+## Manual beta installation (NOT YET TESTED ON A CLEAN DEVICE)
+
+**Prerequisites:** a compatible R36T Max running the same dArkOS4Clone / Debian 13 ARM64 environment, SSH access, a system backup, the release archive downloaded to a Windows PC, and the `3d-preview` installer scripts. The installer will **refuse** an existing manual 3D installation; **do not run it on the development R36T Max** until a migration procedure is ready.
+
+1. Transfer the archive to the handheld from Windows PowerShell (adapt the IP):
+
+   ```powershell
+   scp "$env:USERPROFILE\\Downloads\\emulationstation-3d-r36tmax-arm64.tar.gz" ark@192.168.1.97:/home/ark/
+   ```
+
+2. Connect by SSH and validate the archive. The SHA below corresponds **only** to the original beta test archive:
+
+   ```bash
+   cd /home/ark
+   echo '6c31ef047feda893bbf354ee564c7f8784400e807187777d3eae247ba5a95213  emulationstation-3d-r36tmax-arm64.tar.gz' | sha256sum -c -
+   mkdir -p /home/ark/es3d-install
+   tar -xzf emulationstation-3d-r36tmax-arm64.tar.gz -C /home/ark/es3d-install
+   ```
+
+3. Download the scripts from the project repository, then install using the **extracted executable**, not the `.tar.gz` file:
+
+   ```bash
+   git clone -b 3d-preview --depth 1 https://github.com/Sendew/EmulationStation-fcamod.git /home/ark/es3d-installer
+   sudo bash /home/ark/es3d-installer/scripts/3d-preview/install.sh /home/ark/es3d-install/emulationstation-3d
+   ```
+
+4. To uninstall **only if the mod was installed by that script**:
+
+   ```bash
+   sudo bash /home/ark/es3d-installer/scripts/3d-preview/uninstall.sh
+   ```
+
+These steps are documentation for a future controlled test, **not a verified one-command installer**. The current scripts have only passed Bash syntax checks, not a complete install/uninstall/rollback test. The mod does not include copyrighted game assets or GLB models.
+
 ## Attribution
 This work builds on [christianhaitian/EmulationStation-fcamod](https://github.com/christianhaitian/EmulationStation-fcamod) and the upstream contributors acknowledged there. Review and comply with the applicable upstream licenses before redistributing binaries. No game ROMs, personal `gamelist.xml` files, credentials, or GLB assets are distributed.
