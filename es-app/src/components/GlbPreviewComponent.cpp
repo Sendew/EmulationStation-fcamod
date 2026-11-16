@@ -228,6 +228,39 @@ bool GlbPreviewComponent::load(const std::string& path) {
                 if(!getFloat(attr["POSITION"].GetInt(),3,pos)) return false;
                 if(attr.HasMember("NORMAL") && !getFloat(attr["NORMAL"].GetInt(),3,nrm)) return false;
                 if(attr.HasMember("TEXCOORD_0") && !getFloat(attr["TEXCOORD_0"].GetInt(),2,uv)) return false;
+
+                // GLB_VERTEX_COLOR_V1: glTF COLOR_0 may be RGB/RGBA float or normalized integers.
+                std::vector<float> vertexColors;
+                if(attr.HasMember("COLOR_0") && attr["COLOR_0"].IsInt()) {
+                    int ci=attr["COLOR_0"].GetInt();
+                    if(ci<0 || (size_t)ci>=access.Size()) return false;
+                    const J& ca=access[ci];
+                    int ct=num(ca,"componentType");
+                    int nc=0;
+                    if(ca.HasMember("type") && ca["type"].IsString()) {
+                        std::string kind=ca["type"].GetString();
+                        nc=kind=="VEC4"?4:kind=="VEC3"?3:0;
+                    }
+                    if(!nc || (ct!=5126 && ct!=5121 && ct!=5123))
+                        return false;
+                    size_t count=0,stride=0;
+                    const unsigned char* p=nullptr;
+                    if(!span(ci,nc,ct,count,stride,p) ||
+                       count!=pos.size()/3) return false;
+                    vertexColors.assign(count*4,1.0f);
+                    for(size_t i=0;i<count;++i)
+                        for(int k=0;k<nc;++k) {
+                            float value=1.0f;
+                            const unsigned char* q=p+i*stride+
+                                k*(ct==5126?4:ct==5123?2:1);
+                            if(ct==5126) std::memcpy(&value,q,4);
+                            else if(ct==5123)
+                                value=float(q[0] | (q[1]<<8))/65535.0f;
+                            else value=float(q[0])/255.0f;
+                            vertexColors[i*4+k]=value;
+                        }
+                }
+
                 std::vector<uint32_t> ids;
                 if(prim.HasMember("indices")) {
                     if(!getIndices(num(prim,"indices",-1),ids)) return false;
@@ -255,6 +288,10 @@ bool GlbPreviewComponent::load(const std::string& path) {
                 int material=num(prim,"material",-1);
                 if(materials && material>=0 && (size_t)material<materials->Size()) {
                     const J& matJ=(*materials)[material];
+                    if(matJ.HasMember("alphaMode") &&
+                       matJ["alphaMode"].IsString() &&
+                       std::strcmp(matJ["alphaMode"].GetString(),"BLEND")==0)
+                        part.blend=true;
                     if(matJ.HasMember("pbrMetallicRoughness")) {
                         const J& pbr=matJ["pbrMetallicRoughness"];
                         if(pbr.HasMember("baseColorFactor") && pbr["baseColorFactor"].IsArray() && pbr["baseColorFactor"].Size()==4)
@@ -293,6 +330,16 @@ bool GlbPreviewComponent::load(const std::string& path) {
                     float nl=std::sqrt(vertex.normal[0]*vertex.normal[0]+vertex.normal[1]*vertex.normal[1]+vertex.normal[2]*vertex.normal[2]);
                     if(nl>0.0001f) for(int k=0;k<3;++k)vertex.normal[k]/=nl;
                     if(uv.size()>id*2+1) {vertex.uv[0]=uv[id*2];vertex.uv[1]=1.0f-uv[id*2+1];}
+                    for(int k=0;k<4;++k) {
+                        float linear=part.color[k]*
+                            (vertexColors.empty()?1.0f:vertexColors[id*4+k]);
+                        if(k<3) {
+                            linear=std::max(0.0f,std::min(1.0f,linear));
+                            vertex.color[k]=linear<=0.0031308f
+                                ?12.92f*linear
+                                :1.055f*std::pow(linear,1.0f/2.4f)-0.055f;
+                        } else vertex.color[k]=linear;
+                    }
                     part.verts.push_back(vertex);
                 }
                 mParts.push_back(std::move(part));
@@ -461,6 +508,8 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
     glTranslatef(0.0f, 0.0f, 0.0f); // GLB_ORIGIN_ZERO_V1 // GLB_BOTTOM_ANCHOR_V1
     glEnableClientState(GL_VERTEX_ARRAY);glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    GLboolean previousColorArray=glIsEnabled(GL_COLOR_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
     for(const auto& part:mParts) {
         if(part.verts.empty()) continue;
         const auto& v=part.verts[0];
@@ -471,14 +520,16 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,part.wrapT);
         }
         else {glDisable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,0);}
-        if(part.color[3]<0.999f) {glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);}else glDisable(GL_BLEND);
-        glColor4f(part.color[0],part.color[1],part.color[2],part.color[3]);
+        if(part.blend || part.color[3]<0.999f) {glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);}else glDisable(GL_BLEND);
+        glColor4f(1,1,1,1);
+        glColorPointer(4,GL_FLOAT,sizeof(Vertex),v.color);
         glVertexPointer(3,GL_FLOAT,sizeof(Vertex),v.pos);
         glNormalPointer(GL_FLOAT,sizeof(Vertex),v.normal);
         glTexCoordPointer(2,GL_FLOAT,sizeof(Vertex),v.uv);
         glDrawArrays(GL_TRIANGLES,0,(GLsizei)part.verts.size());
     }
     glDisableClientState(GL_VERTEX_ARRAY);glDisableClientState(GL_NORMAL_ARRAY);glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    if(!previousColorArray)glDisableClientState(GL_COLOR_ARRAY);
     glColor4f(1,1,1,1);
     glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();
     glMatrixMode(oldMode);
