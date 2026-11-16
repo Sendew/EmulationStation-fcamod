@@ -19,6 +19,31 @@ Add these elements **inside** the correct `<game>` element in your own `gamelist
 
 The path is resolved by EmulationStation, and zoom can be changed by restarting EmulationStation. Not every glTF feature or animation rig has been tested. GLB assets are not included in this repository.
 
+## GLB textures and color compatibility (R36T Max testing)
+
+The preview renderer intentionally supports only a subset of glTF 2.0. For the **current experimental build**, use **PNG images embedded inside the `.glb`** for predictable texture loading; external texture files and the `EXT_texture_webp` extension are not supported by the current texture lookup. PNG is a **compatibility recommendation for this renderer**, not a limitation of glTF itself.
+
+### Case study: Super Mario 64
+
+A Mario GLB initially rendered geometry but showed white eyes, moustache, hat emblem and other image-based details. Inspection found five textures with **no ordinary `textures[].source`**; instead each referenced an embedded `image/webp` via `textures[].extensions.EXT_texture_webp.source`. Converting all five WebP images to embedded PNG, setting the standard `textures[].source`, and removing the unused WebP extension restored the missing details. The original GLB was kept until the replacement was verified.
+
+The remaining incorrect skin and clothing tones were traced separately to **color handling**:
+
+- This GLB supplies `COLOR_0` on its primitives. Supporting vertex color attributes (including multiplication with `baseColorFactor`) is appropriate, but inspection showed **all vertex colors were white** for this Mario model; vertex colors were **not** the cause of its remaining color difference.
+- Its `baseColorFactor` values are specified in **linear RGB**. On the tested fixed-function OpenGL ES rendering path, converting the final RGB color from linear to **sRGB** before submitting vertex colors corrected the visible appearance. Alpha must remain linear. Do not apply this conversion blindly on a shader-based pipeline that already handles color space correctly.
+- Some textured Mario materials declare `alphaMode: BLEND`. The test implementation also enables blending for these materials; this is separate from decoding and locating PNG textures.
+
+After the PNG conversion and local color-space fix, the Mario model displayed its image details and colors correctly on the R36T Max. The prebuilt beta archive/checksum documented below **predates these local fixes**; it should not be described as containing them. **The current GitHub source may also lag behind the tested local changes until a separate source commit is pushed.**
+
+### Troubleshooting models that load but look wrong
+
+- **White/missing facial details:** inspect `textures[].source`, `EXT_texture_webp`, `images[].mimeType`, and the material's `baseColorTexture.index`; use embedded PNG for this build.
+- **Wrong colors after textures appear:** inspect `baseColorFactor`, `COLOR_0`, and linear/sRGB handling; PNG conversion alone does not fix color-space errors.
+- **Transparent detail issues:** check material `alphaMode` and renderer blending. Full glTF transparency and render ordering have not been validated.
+- **Scale issues:** adjust `<model3dScale>` for each game; the value appropriate for Link was too large for Mario.
+
+These findings come from the local **Mario GLB test** and do not imply complete glTF 2.0 compliance.
+
 ## Tested build environment
 
 The first ARM64 binary was built and run on an **R36T Max** using **dArkOS4Clone with Debian GNU/Linux 13.6 (Trixie)**, on a **720 × 720** display. It is an **AArch64 dynamically linked ELF** and uses SDL2, EGL/OpenGL ES, FreeImage, FreeType, SDL2_mixer, libcurl, VLC and ALSA, along with their transitive libraries. On the tested device, `ldd` reported no unresolved shared libraries. This does **not** guarantee ABI or graphics-driver compatibility on other dArkOS, ArkOS or ARM64 images.
