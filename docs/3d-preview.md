@@ -33,7 +33,7 @@ The remaining incorrect skin and clothing tones were traced separately to **colo
 - Its `baseColorFactor` values are specified in **linear RGB**. On the tested fixed-function OpenGL ES rendering path, converting the final RGB color from linear to **sRGB** before submitting vertex colors corrected the visible appearance. Alpha must remain linear. Do not apply this conversion blindly on a shader-based pipeline that already handles color space correctly.
 - Some textured Mario materials declare `alphaMode: BLEND`. The test implementation also enables blending for these materials; this is separate from decoding and locating PNG textures.
 
-After the PNG conversion and local color-space fix, the Mario model displayed its image details and colors correctly on the R36T Max. The prebuilt beta archive/checksum documented below **predates these local fixes**; it should not be described as containing them. **The current GitHub source may also lag behind the tested local changes until a separate source commit is pushed.**
+After the PNG conversion and local color-space fix, the Mario model displayed its image details and colors correctly on the R36T Max. The prebuilt beta archive/checksum documented below **predates these fixes**; it should not be described as containing them. The source changes for vertex colors, BLEND handling and linear-to-sRGB conversion were subsequently committed to the `3d-preview` branch. The PNG conversion was applied to the test model asset, **not** as an automatic WebP converter in the renderer.
 
 ### Troubleshooting models that load but look wrong
 
