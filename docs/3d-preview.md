@@ -44,6 +44,21 @@ After the PNG conversion and local color-space fix, the Mario model displayed it
 
 These findings come from the local **Mario GLB test** and do not imply complete glTF 2.0 compliance.
 
+## Paper Mario: alpha masking and back-face visibility
+
+The R36T Max test build now supports the glTF material modes `OPAQUE`, `MASK` and `BLEND` on the fixed-function OpenGL ES rendering path:
+
+- **`MASK`**: enable `GL_ALPHA_TEST` using the material's `alphaCutoff` (default 0.5), discarding transparent texels without requiring alpha blending.
+- **`BLEND`**: enable standard alpha blending. Transparent draw-order sorting is not yet implemented.
+- **`doubleSided`**: glTF defaults to `false`; single-sided materials cull back-facing triangles, while `true` disables culling for that material. This avoids seeing a card/sprite texture through its back during model rotation.
+- The previous OpenGL alpha-test, face-culling, and front-face settings are restored after rendering, so the preview does not leave these states enabled in the surrounding UI.
+
+**Paper Mario test:** the original four-material GLB used embedded PNG textures with `alphaMode: MASK`. Alpha masking removed transparent rectangular backgrounds. The model also contained separate blank-white front/back silhouette materials; these were removed from a **user-edited test GLB**, not automatically discarded by the renderer. The back-face handling then improved rotating sprite-plane visibility. A cropped or reduced-resolution texture can lower the first-frame processing cost, but image changes are **not** included in the source repository.
+
+**Performance measurement:** an earlier 1024×1024-texture Paper Mario capture showed approximately 4 ms of GLB loading and 357 ms of first-frame texture preparation versus roughly 11 ms and 7 ms for Mario 64 on the same device. The smaller, user-edited textures resolved the observed delay; the exact revised timing has not been measured here. GPU/FreeImage upload work is still performed on first use, and model caching is not yet implemented.
+
+These are local test results, not guarantees for every glTF asset or handheld. The previously documented beta archive has **not** been rebuilt with these source updates.
+
 ## Tested build environment
 
 The first ARM64 binary was built and run on an **R36T Max** using **dArkOS4Clone with Debian GNU/Linux 13.6 (Trixie)**, on a **720 × 720** display. It is an **AArch64 dynamically linked ELF** and uses SDL2, EGL/OpenGL ES, FreeImage, FreeType, SDL2_mixer, libcurl, VLC and ALSA, along with their transitive libraries. On the tested device, `ldd` reported no unresolved shared libraries. This does **not** guarantee ABI or graphics-driver compatibility on other dArkOS, ArkOS or ARM64 images.
