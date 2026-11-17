@@ -16,7 +16,7 @@ public:
     void render(const Transform4x4f& parentTrans) override;
 private:
     struct Vertex { float pos[3], normal[3], uv[2]; float color[4]={1,1,1,1}; float bindPos[3]={0,0,0}; unsigned short joint[4]={0,0,0,0}; float weight[4]={0,0,0,0}; };
-    struct Part { int skin = -1; std::vector<Vertex> verts; int image = -1; int wrapS = 10497, wrapT = 10497; float color[4] = {1,1,1,1}; bool blend=false; };
+    struct Part { int skin = -1; std::vector<Vertex> verts; int image = -1; int wrapS = 10497, wrapT = 10497; float color[4] = {1,1,1,1}; bool doubleSided=false; bool blend=false; bool alphaMask=false; float alphaCutoff=0.5f; };
     struct Picture { std::vector<unsigned char> encoded; unsigned int texture = 0; };
     // GLB_CPU_SKIN_V1: animacao esquelética por CPU, sem shaders novos.
     using Mat4 = std::array<float,16>;
