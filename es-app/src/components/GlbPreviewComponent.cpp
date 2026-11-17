@@ -288,10 +288,19 @@ bool GlbPreviewComponent::load(const std::string& path) {
                 int material=num(prim,"material",-1);
                 if(materials && material>=0 && (size_t)material<materials->Size()) {
                     const J& matJ=(*materials)[material];
+                    part.doubleSided=matJ.HasMember("doubleSided") &&
+                        matJ["doubleSided"].IsBool() &&
+                        matJ["doubleSided"].GetBool();
                     if(matJ.HasMember("alphaMode") &&
-                       matJ["alphaMode"].IsString() &&
-                       std::strcmp(matJ["alphaMode"].GetString(),"BLEND")==0)
-                        part.blend=true;
+                       matJ["alphaMode"].IsString()) {
+                        const char* mode=matJ["alphaMode"].GetString();
+                        part.blend=std::strcmp(mode,"BLEND")==0;
+                        part.alphaMask=std::strcmp(mode,"MASK")==0;
+                    }
+                    if(part.alphaMask && matJ.HasMember("alphaCutoff") &&
+                       matJ["alphaCutoff"].IsNumber())
+                        part.alphaCutoff=std::max(0.0f,std::min(1.0f,
+                            matJ["alphaCutoff"].GetFloat()));
                     if(matJ.HasMember("pbrMetallicRoughness")) {
                         const J& pbr=matJ["pbrMetallicRoughness"];
                         if(pbr.HasMember("baseColorFactor") && pbr["baseColorFactor"].IsArray() && pbr["baseColorFactor"].Size()==4)
@@ -489,10 +498,16 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
     GLboolean wasBlend=glIsEnabled(GL_BLEND),wasCull=glIsEnabled(GL_CULL_FACE),wasLighting=glIsEnabled(GL_LIGHTING);
     GLboolean depthMask;glGetBooleanv(GL_DEPTH_WRITEMASK,&depthMask);
     uploadTextures();
+    GLint oldCullMode=GL_BACK,oldFrontFace=GL_CCW;
+    glGetIntegerv(GL_CULL_FACE_MODE,&oldCullMode);
+    glGetIntegerv(GL_FRONT_FACE,&oldFrontFace);
     glViewport(vx,vy,vw,vh); glScissor(vx,vy,vw,vh); glEnable(GL_SCISSOR_TEST);
 
     glDepthMask(GL_TRUE);glClear(GL_DEPTH_BUFFER_BIT);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL); // GLB_DEPTH_FIX_V1
-    glDisable(GL_CULL_FACE);glDisable(GL_LIGHTING);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+    glDisable(GL_LIGHTING);
     glMatrixMode(GL_PROJECTION);glPushMatrix();glLoadIdentity();
     float ar=float(w)/float(h);
     glOrthof(-2.08f*ar,2.08f*ar,-2.08f,2.08f,1.0f,20.0f);
@@ -508,10 +523,17 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
     glTranslatef(0.0f, 0.0f, 0.0f); // GLB_ORIGIN_ZERO_V1 // GLB_BOTTOM_ANCHOR_V1
     glEnableClientState(GL_VERTEX_ARRAY);glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    GLboolean oldAlphaTest=glIsEnabled(GL_ALPHA_TEST);
+    GLint oldAlphaFunc=GL_ALWAYS;
+    GLfloat oldAlphaRef=0.0f;
+    glGetIntegerv(GL_ALPHA_TEST_FUNC,&oldAlphaFunc);
+    glGetFloatv(GL_ALPHA_TEST_REF,&oldAlphaRef);
     GLboolean previousColorArray=glIsEnabled(GL_COLOR_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
     for(const auto& part:mParts) {
         if(part.verts.empty()) continue;
+        if(part.doubleSided) glDisable(GL_CULL_FACE);
+        else glEnable(GL_CULL_FACE);
         const auto& v=part.verts[0];
         GLuint tex=(part.image>=0 && (size_t)part.image<mPictures.size())?mPictures[part.image].texture:0;
         if(tex) {
@@ -520,7 +542,14 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,part.wrapT);
         }
         else {glDisable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,0);}
-        if(part.blend || part.color[3]<0.999f) {glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);}else glDisable(GL_BLEND);
+        if(part.alphaMask) {
+            glEnable(GL_ALPHA_TEST);
+            glAlphaFunc(GL_GREATER,part.alphaCutoff);
+        } else glDisable(GL_ALPHA_TEST);
+        if(part.blend || (!part.alphaMask && part.color[3]<0.999f)) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+        } else glDisable(GL_BLEND);
         glColor4f(1,1,1,1);
         glColorPointer(4,GL_FLOAT,sizeof(Vertex),v.color);
         glVertexPointer(3,GL_FLOAT,sizeof(Vertex),v.pos);
@@ -530,6 +559,9 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
     }
     glDisableClientState(GL_VERTEX_ARRAY);glDisableClientState(GL_NORMAL_ARRAY);glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     if(!previousColorArray)glDisableClientState(GL_COLOR_ARRAY);
+    glAlphaFunc(oldAlphaFunc,oldAlphaRef);
+    if(oldAlphaTest)glEnable(GL_ALPHA_TEST);
+    else glDisable(GL_ALPHA_TEST);
     glColor4f(1,1,1,1);
     glMatrixMode(GL_MODELVIEW);glPopMatrix();glMatrixMode(GL_PROJECTION);glPopMatrix();
     glMatrixMode(oldMode);
@@ -539,6 +571,8 @@ void GlbPreviewComponent::render(const Transform4x4f& parentTrans) {
     if(wasDepth)glEnable(GL_DEPTH_TEST);else glDisable(GL_DEPTH_TEST);
     if(wasTex)glEnable(GL_TEXTURE_2D);else glDisable(GL_TEXTURE_2D);
     if(wasBlend)glEnable(GL_BLEND);else glDisable(GL_BLEND);
+    glCullFace(oldCullMode);
+    glFrontFace(oldFrontFace);
     if(wasCull)glEnable(GL_CULL_FACE);else glDisable(GL_CULL_FACE);
     if(wasLighting)glEnable(GL_LIGHTING);else glDisable(GL_LIGHTING);
     glDepthMask(depthMask);glBindTexture(GL_TEXTURE_2D,oldTex);
